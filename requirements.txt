@@ -1,0 +1,5 @@
+python-telegram-bot
+Pillow
+motor
+dnspython
+flask
