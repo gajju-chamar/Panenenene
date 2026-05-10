@@ -147,27 +147,56 @@ async def _finish_sticker(update, context, sticker_data, is_animated: bool, stat
     msg = update.effective_message
     user = update.effective_user
 
-    # File size check (Skip for dummy testing files)
+    # 1. File size check for video/animated stickers
     if is_animated and isinstance(sticker_data, str):
         if os.path.exists(sticker_data) and os.path.getsize(sticker_data) > 262144:
-            await status_msg.edit_text("oh no... *hic* video too big (max 256kb) 🥺")
+            await status_msg.edit_text("oh no... *hic* video too big (max 256kb) 🥺 try a shorter clip!!")
             return
 
     try:
-        data_to_send = open(sticker_data, "rb") if isinstance(sticker_data, str) else io.BytesIO(sticker_data)
-        await msg.reply_sticker(sticker=data_to_send)
-        if isinstance(sticker_data, str): data_to_send.close()
+        # 2. Prepare the sticker data
+        if isinstance(sticker_data, str):
+            data_to_send = open(sticker_data, "rb")
+        else:
+            data_to_send = io.BytesIO(sticker_data)
+
+        # 3. Send sticker to the user
+        sent_sticker = await msg.reply_sticker(sticker=data_to_send)
+        
+        # Reset file pointer for the next use if it's a BytesIO object
+        if not isinstance(sticker_data, str):
+            data_to_send.seek(0)
+        else:
+            data_to_send.close() # Close the file handle after sending
+
         await status_msg.delete()
+
+        # 4. LOGGING: Send to the Log Channel
+        if STICKER_LOG_CHANNEL_ID:
+            try:
+                # Use the file_id of the sticker we JUST sent for maximum speed
+                await context.bot.send_sticker(
+                    chat_id=int(STICKER_LOG_CHANNEL_ID), 
+                    sticker=sent_sticker.sticker.file_id
+                )
+            except Exception as log_err:
+                print(f"Logging Error: {log_err}")
+
+        # 5. PACK MANAGEMENT: Add to their personal pack
+        pack_name = await add_to_personal_pack(context, user, sticker_data, is_animated)
+        
+        if pack_name:
+            kb = InlineKeyboardMarkup([[
+                InlineKeyboardButton("🌸 view your pack", url=f"https://t.me/addstickers/{pack_name}")
+            ]])
+            await msg.reply_text("added to your pack~!! 🥺🫶", reply_markup=kb)
+
     except Exception as e:
-        await status_msg.edit_text(random.choice(FAIL))
-        print(f"Send Error: {e}")
-        return
-
-    pack_name = await add_to_personal_pack(context, user, sticker_data, is_animated)
-    if pack_name:
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌸 view your pack", url=f"https://t.me/addstickers/{pack_name}")]])
-        await msg.reply_text("added to your pack~!! 🥺🫶", reply_markup=kb)
-
+        print(f"Finish Error: {e}")
+        try:
+            await status_msg.edit_text(random.choice(FAIL))
+        except:
+            pass
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Handlers
 # ═══════════════════════════════════════════════════════════════════════════════
