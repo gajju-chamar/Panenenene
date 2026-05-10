@@ -1,0 +1,7 @@
+START = ["hii there~!! *hic* send me something to turn into a sticker 🌸"]
+PROC = ["working on it... *hic* give me a sec 🥺", "processing your media~ 🌸"]
+SUCCESS = ["donee~!! i hope you like it 🫶", "here's your sticker!! *hic* 🌸"]
+FAIL = ["oh no... *hic* something went wrong 🥺", "i couldn't do it... i'm sorry 🌸"]
+RANDOM_TEXT = ["*hic* i'm just a sticker bot... send me a photo or video 🥺"]
+IMAGINE = ["imagining sweet things... *hic* 🌸"]
+DELULU = ["i have some delulu thoughts about you... 👀🥺"]
