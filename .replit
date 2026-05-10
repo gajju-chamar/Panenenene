@@ -1,0 +1,7 @@
+run = "python bot.py"
+
+[nix]
+channel = "stable-23_11"
+
+[deployment]
+run = "python bot.py"
