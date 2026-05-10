@@ -222,22 +222,39 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
 #  Bootstrap
 # ═══════════════════════════════════════════════════════════════════════════════
 
+async def post_init(application: Application):
+    """ This syncs the commands with the Telegram UI Menu """
+    commands = [
+        BotCommand("start", "Start the bot 🌸"),
+        BotCommand("mypack", "Get your sticker pack link 🫶"),
+        BotCommand("delulu", "Get a delulu thought 🥺"),
+    ]
+    await application.bot.set_my_commands(commands)
+    print("✅ Commands synced to Telegram UI!")
+
 def main():
     if not TOKEN: 
         print("❌ Set TOKEN in config/env")
         return
     
-    app = Application.builder().token(TOKEN).build()
+    # We add 'post_init' here to trigger the UI command update
+    app = Application.builder().token(TOKEN).post_init(post_init).build()
 
-    # Commands - Now properly defined!
+    # 1. Start & MyPack
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("mypack", cmd_mypack))
+    
+    # 2. Add the Delulu Handler (Since it was missing!)
+    app.add_handler(CommandHandler("delulu", cmd_delulu))
 
+    # 3. Media Handlers
     media_filter = (filters.VIDEO | filters.ANIMATION | filters.PHOTO | filters.Sticker.ALL | filters.Document.VIDEO)
     app.add_handler(MessageHandler(filters.ChatType.PRIVATE & media_filter, handle_media))
 
     print("🌸 Sticker Bot is in Turbo Mode~!!")
-    app.run_polling(allowed_updates=["message", "callback_query"])
+    
+    # allowed_updates ensures the bot listens for everything it needs
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
     main()
