@@ -26,13 +26,9 @@ from telegram.error import TelegramError
 from config import (
     TOKEN,
     OWNER_ID,
-    BOT_USERNAME as _BOT_USERNAME_RAW,
     STICKER_LOG_CHANNEL_ID,
     INBOX_CHANNEL_ID,
 )
-
-# Telegram pack names must use the username without '@'
-BOT_USERNAME = _BOT_USERNAME_RAW.lstrip("@") if _BOT_USERNAME_RAW else "bot"
 
 from storage import (
     load_users,
@@ -245,14 +241,16 @@ async def convert_image_to_webp(in_bytes: bytes) -> bytes:
 
 async def _kang_add(context, user, sticker_input: InputSticker, is_animated: bool) -> str | None:
     """Add a pre-built InputSticker directly into the user's pack."""
+    bot_username = context.bot.username.lstrip("@").lower()
     if is_animated:
-        short_name = f"packv_{user.id}_by_{BOT_USERNAME}"
+        short_name = f"packv_{user.id}_by_{bot_username}"
         get_fn = get_video_pack
         save_fn = save_video_pack
     else:
-        short_name = f"pack_{user.id}_by_{BOT_USERNAME}"
+        short_name = f"pack_{user.id}_by_{bot_username}"
         get_fn = get_pack
         save_fn = save_pack
+    print(f"🔧 Pack name: {short_name}")
 
     existing_pack = await get_fn(user.id)
 
@@ -299,21 +297,23 @@ async def _kang_add(context, user, sticker_input: InputSticker, is_animated: boo
 async def add_to_personal_pack(context, user, sticker_data, is_animated: bool) -> str | None:
     """
     Add a sticker to the user's personal pack.
-    - Static stickers go into pack_{user.id}_by_{BOT_USERNAME}
-    - Video/animated stickers go into packv_{user.id}_by_{BOT_USERNAME}
+    - Static stickers go into pack_{user.id}_by_{bot_username}
+    - Video/animated stickers go into packv_{user.id}_by_{bot_username}
     Telegram does not allow mixing static and video stickers in one pack,
     so we maintain two separate packs transparently.
     """
+    bot_username = context.bot.username.lstrip("@").lower()
     if is_animated:
-        short_name = f"packv_{user.id}_by_{BOT_USERNAME}"
+        short_name = f"packv_{user.id}_by_{bot_username}"
         fmt = "video"
         get_fn = get_video_pack
         save_fn = save_video_pack
     else:
-        short_name = f"pack_{user.id}_by_{BOT_USERNAME}"
+        short_name = f"pack_{user.id}_by_{bot_username}"
         fmt = "static"
         get_fn = get_pack
         save_fn = save_pack
+    print(f"🔧 Pack name: {short_name}")
 
     # Build the InputSticker object
     try:
