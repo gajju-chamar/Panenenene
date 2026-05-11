@@ -227,7 +227,13 @@ async def convert_image_to_webp(in_bytes: bytes) -> bytes:
     def process():
         with Image.open(io.BytesIO(in_bytes)) as img:
             img = img.convert("RGBA")
-            img.thumbnail((512, 512), Image.Resampling.LANCZOS)
+            w, h = img.size
+            # Telegram requires exactly 512px on the longest side
+            if w >= h:
+                new_w, new_h = 512, max(1, round(h * 512 / w))
+            else:
+                new_w, new_h = max(1, round(w * 512 / h)), 512
+            img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
             out_io = io.BytesIO()
             img.save(out_io, "WEBP", quality=95)
             return out_io.getvalue()
@@ -254,44 +260,54 @@ async def _kang_add(context, user, sticker_input: InputSticker, is_animated: boo
 
     existing_pack = await get_fn(user.id)
 
-    try:
-        if existing_pack:
-            await context.bot.add_sticker_to_set(
+    async def _create_pack():
+        safe_name = re.sub(r"[^\w\s]", "", user.first_name or "User")[:28].strip()
+        title = f"{safe_name}'s Pack" if safe_name else "My Pack"
+        print(f"🆕 Creating new pack '{short_name}' title='{title}'")
+        try:
+            await context.bot.create_new_sticker_set(
                 user_id=user.id,
                 name=short_name,
-                sticker=sticker_input,
+                title=title,
+                stickers=[sticker_input],
+                sticker_type="regular",
             )
-        else:
-            safe_name = re.sub(r"[^\w\s]", "", user.first_name or "User")[:28].strip()
-            title = f"{safe_name}'s Pack" if safe_name else "My Pack"
-            try:
-                await context.bot.create_new_sticker_set(
-                    user_id=user.id,
-                    name=short_name,
-                    title=title,
-                    stickers=[sticker_input],
-                    sticker_type="regular",
-                )
+            await save_fn(user.id, short_name)
+            print(f"✅ Created pack '{short_name}' for user {user.id}")
+        except TelegramError as te:
+            err = str(te).lower()
+            print(f"⚠️ create_new_sticker_set error: {te}")
+            if "already occupied" in err or "name is occupied" in err:
                 await save_fn(user.id, short_name)
-                print(f"✅ Created new pack '{short_name}' for user {user.id}")
+                await context.bot.add_sticker_to_set(
+                    user_id=user.id, name=short_name, sticker=sticker_input,
+                )
+                print(f"♻️ Re-linked existing pack '{short_name}'")
+            else:
+                raise te
+
+    try:
+        if existing_pack:
+            print(f"➕ Adding to existing pack '{short_name}'")
+            try:
+                await context.bot.add_sticker_to_set(
+                    user_id=user.id, name=short_name, sticker=sticker_input,
+                )
             except TelegramError as te:
-                err = str(te).lower()
-                if "already occupied" in err or "name is occupied" in err:
-                    await save_fn(user.id, short_name)
-                    await context.bot.add_sticker_to_set(
-                        user_id=user.id,
-                        name=short_name,
-                        sticker=sticker_input,
-                    )
-                    print(f"♻️ Re-linked existing pack '{short_name}' for user {user.id}")
+                if "stickerset_invalid" in str(te).lower():
+                    print(f"⚠️ Stale pack in DB, recreating...")
+                    await save_fn(user.id, None)
+                    await _create_pack()
                 else:
                     raise te
+        else:
+            await _create_pack()
         return short_name
     except TelegramError as te:
-        print(f"Kang TelegramError for user {user.id}: {te}")
+        print(f"❌ Kang TelegramError for user {user.id}: {te}")
         return None
     except Exception as e:
-        print(f"Kang Pack Error for user {user.id}: {e}")
+        print(f"❌ Kang Pack Error for user {user.id}: {type(e).__name__}: {e}")
         return None
 
 async def add_to_personal_pack(context, user, sticker_data, is_animated: bool) -> str | None:
@@ -329,49 +345,56 @@ async def add_to_personal_pack(context, user, sticker_data, is_animated: bool) -
 
     existing_pack = await get_fn(user.id)
 
-    try:
-        if existing_pack:
-            # Pack already exists — just append
-            await context.bot.add_sticker_to_set(
+    async def _create_pack():
+        safe_name = re.sub(r"[^\w\s]", "", user.first_name or "User")[:28].strip()
+        title = f"{safe_name}'s Pack" if safe_name else "My Pack"
+        print(f"🆕 Creating new pack '{short_name}' title='{title}'")
+        try:
+            await context.bot.create_new_sticker_set(
                 user_id=user.id,
                 name=short_name,
-                sticker=sticker_input,
+                title=title,
+                stickers=[sticker_input],
+                sticker_type="regular",
             )
-        else:
-            # Create a brand new pack for this user
-            safe_name = re.sub(r"[^\w\s]", "", user.first_name or "User")[:28].strip()
-            title = f"{safe_name}'s Pack" if safe_name else "My Pack"
-            try:
-                await context.bot.create_new_sticker_set(
-                    user_id=user.id,
-                    name=short_name,
-                    title=title,
-                    stickers=[sticker_input],
-                    sticker_type="regular",
-                )
+            await save_fn(user.id, short_name)
+            print(f"✅ Created pack '{short_name}' for user {user.id}")
+        except TelegramError as te:
+            err = str(te).lower()
+            print(f"⚠️ create_new_sticker_set error: {te}")
+            if "already occupied" in err or "name is occupied" in err:
                 await save_fn(user.id, short_name)
-                print(f"✅ Created new pack '{short_name}' for user {user.id}")
+                await context.bot.add_sticker_to_set(
+                    user_id=user.id, name=short_name, sticker=sticker_input,
+                )
+                print(f"♻️ Re-linked existing pack '{short_name}'")
+            else:
+                raise te
+
+    try:
+        if existing_pack:
+            print(f"➕ Adding to existing pack '{short_name}'")
+            try:
+                await context.bot.add_sticker_to_set(
+                    user_id=user.id, name=short_name, sticker=sticker_input,
+                )
             except TelegramError as te:
-                err = str(te).lower()
-                if "already occupied" in err or "name is occupied" in err:
-                    # Pack exists on Telegram but not in DB — re-link and add sticker
-                    await save_fn(user.id, short_name)
-                    await context.bot.add_sticker_to_set(
-                        user_id=user.id,
-                        name=short_name,
-                        sticker=sticker_input,
-                    )
-                    print(f"♻️ Re-linked existing pack '{short_name}' for user {user.id}")
+                if "stickerset_invalid" in str(te).lower():
+                    print(f"⚠️ Stale pack in DB, recreating...")
+                    await save_fn(user.id, None)
+                    await _create_pack()
                 else:
                     raise te
+        else:
+            await _create_pack()
 
         return short_name
 
     except TelegramError as te:
-        print(f"Pack TelegramError for user {user.id}: {te}")
+        print(f"❌ Pack TelegramError for user {user.id}: {te}")
         return None
     except Exception as e:
-        print(f"Pack Error for user {user.id}: {e}")
+        print(f"❌ Pack Error for user {user.id}: {type(e).__name__}: {e}")
         return None
 
 
