@@ -1,5 +1,4 @@
-python-telegram-bot
+python-telegram-bot==22.7
 Pillow
 motor
 dnspython
-flask
